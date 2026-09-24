@@ -12,7 +12,7 @@ class YoloScreenDetector:
         """
         from ultralytics import YOLO
         self.model = YOLO(model_name)
-        self.classes = [62, 63]
+        self.classes = [62]
         
     def detect(self, frame):
         """

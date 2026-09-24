@@ -72,42 +72,59 @@ class DabacoMetrics:
             
         return np.mean(ious) if ious else 0.0
 
-    def compute_jitter(self, predictions):
+    def compute_pointing_coordinate(self, corners):
         """
-        Computes jitter (instability) as the average Euclidean distance 
-        between predicted corners in consecutive frames, returning both px and %.
+        Computes the relative coordinates of the camera center mapped onto the screen.
+        Returns (u, v) where [0,0] is top-left and [1,1] is bottom-right, or None if invalid.
         """
-        diagonal = np.sqrt(self.image_width**2 + self.image_height**2)
-        jitters = []
-        for i in range(1, len(predictions)):
-            prev_pred = predictions[i-1]
-            curr_pred = predictions[i]
+        if corners is None or len(corners) != 4:
+            return None
             
-            if prev_pred is None or curr_pred is None or len(prev_pred) != 4 or len(curr_pred) != 4:
-                continue
+        cx, cy = self.image_width / 2.0, self.image_height / 2.0
+        
+        src_pts = np.array(corners, dtype=np.float32)
+        dst_pts = np.array([
+            [0.0, 0.0],
+            [1.0, 0.0],
+            [1.0, 1.0],
+            [0.0, 1.0]
+        ], dtype=np.float32)
+        
+        try:
+            M = cv2.getPerspectiveTransform(src_pts, dst_pts)
+            center_pt = np.array([[[cx, cy]]], dtype=np.float32)
+            relative_pt = cv2.perspectiveTransform(center_pt, M)
+            u, v = relative_pt[0][0]
+            return float(u), float(v)
+        except Exception:
+            return None
+
+    def compute_pointing_error(self, ground_truth, predictions):
+        """
+        Computes the mean Euclidean distance in relative pointing coordinates 
+        between the predicted screen and ground truth screen.
+        """
+        errors = []
+        for gt, pred in zip(ground_truth, predictions):
+            pt_gt = self.compute_pointing_coordinate(gt)
+            pt_pred = self.compute_pointing_coordinate(pred)
+            
+            if pt_gt is not None and pt_pred is not None:
+                err = np.linalg.norm(np.array(pt_gt) - np.array(pt_pred))
+                errors.append(err)
                 
-            prev_pts = np.array(prev_pred, dtype=np.float32)
-            curr_pts = np.array(curr_pred, dtype=np.float32)
-            
-            dists = np.linalg.norm(prev_pts - curr_pts, axis=1)
-            jitters.append(np.mean(dists))
-            
-        mean_px = np.mean(jitters) if jitters else 0.0
-        mean_pct = (mean_px / diagonal) * 100 if diagonal > 0 else 0.0
-        return mean_px, mean_pct
+        return np.mean(errors) if errors else 0.0
         
     def evaluate_all(self, ground_truth, predictions):
         """
         Computes and returns all metrics as a dictionary.
         """
         ce_px, ce_pct = self.compute_corner_error(ground_truth, predictions)
-        jit_px, jit_pct = self.compute_jitter(predictions)
         
         return {
             "Detection Rate": self.compute_detection_rate(ground_truth, predictions),
             "Mean Corner Error (px)": ce_px,
             "Mean Corner Error (%)": ce_pct,
             "Mean IoU": self.compute_iou(ground_truth, predictions),
-            "Mean Jitter (px)": jit_px,
-            "Mean Jitter (%)": jit_pct
+            "Mean Pointing Error (relative)": self.compute_pointing_error(ground_truth, predictions)
         }

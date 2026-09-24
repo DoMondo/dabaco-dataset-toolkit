@@ -1,0 +1,12 @@
+# Exact freeze from tested reference environment (Python 3.14.7)
+numpy==2.5.3
+opencv-python==5.0.0.93
+ultralytics==8.4.161
+pandas==3.0.6
+matplotlib==3.11.2
+seaborn==0.13.2
+torch==2.14.0
+torchvision==0.29.0
+pillow==12.3.0
+PyYAML==6.0.3
+tqdm==4.70.1
