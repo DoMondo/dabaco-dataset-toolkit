@@ -450,11 +450,75 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             border-radius: 12px;
             border: 1px solid var(--border-color);
             box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chart-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .chart-title-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .chart-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin: 0;
+            user-select: text !important;
+            -webkit-user-select: text !important;
+            cursor: text;
+        }
+
+        .copy-title-btn {
+            background-color: var(--card-sub-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-family: 'Montserrat', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 5px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .copy-title-btn:hover {
+            color: var(--ull-primary-light);
+            border-color: var(--ull-primary-light);
+            background-color: var(--ull-primary-glow);
+        }
+
+        .copy-title-btn.copied {
+            color: #10b981;
+            border-color: #10b981;
+            background-color: rgba(16, 185, 129, 0.1);
+        }
+
+        .gtitle, .xtitle, .ytitle, text, .summary-title, .summary-algo-name, .metric-stat-val {
+            user-select: text !important;
+            -webkit-user-select: text !important;
+            cursor: text !important;
         }
 
         #chart-container {
             width: 100%;
-            height: 650px;
+            height: 620px;
         }
     </style>
 </head>
@@ -515,6 +579,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             <!-- Main Bar Chart -->
             <div class="chart-card">
+                <div class="chart-header">
+                    <div class="chart-title-wrapper">
+                        <h2 id="chart-title" class="chart-title">DaBaCo Benchmark</h2>
+                        <button class="copy-title-btn" id="copy-title-btn" onclick="copySequenceName()" title="Copy sequence name">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                            <span>Copy Sequence</span>
+                        </button>
+                    </div>
+                </div>
                 <div id="chart-container"></div>
             </div>
         </div>
@@ -591,6 +664,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             algoContainer.appendChild(label);
         });
 
+        function copySequenceName() {
+            const selectedScope = document.getElementById('scope-select').value;
+            if (!selectedScope || selectedScope === '__GLOBAL__') return;
+            navigator.clipboard.writeText(selectedScope).then(() => {
+                const btn = document.getElementById('copy-title-btn');
+                if (btn) {
+                    btn.classList.add('copied');
+                    btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Copied sequence!</span>`;
+                    setTimeout(() => {
+                        btn.classList.remove('copied');
+                        btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span>Copy Sequence</span>`;
+                    }, 1800);
+                }
+            }).catch(err => {
+                console.error('Failed to copy sequence name: ', err);
+            });
+        }
+
         function updateView() {
             const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
             const selectedMetric = document.getElementById('metric-select').value;
@@ -602,7 +693,25 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             const isGlobal = (selectedScope === '__GLOBAL__');
             
-            // 1. Update Summary Card
+            // 1. Update Title & Header
+            const chartTitleEl = document.getElementById('chart-title');
+            const copyBtn = document.getElementById('copy-title-btn');
+            const titleText = isGlobal 
+                ? `${selectedMetric} by Sequence (Global Mode)` 
+                : `${selectedMetric} by Frame — ${selectedScope}`;
+            if (chartTitleEl) {
+                chartTitleEl.textContent = titleText;
+            }
+            if (copyBtn) {
+                if (isGlobal) {
+                    copyBtn.style.display = 'none';
+                } else {
+                    copyBtn.style.display = 'inline-flex';
+                    copyBtn.title = `Copy sequence name: ${selectedScope}`;
+                }
+            }
+
+            // 2. Update Summary Card
             const summaryTitle = document.getElementById('summary-title');
             const summaryList = document.getElementById('summary-list');
             summaryList.innerHTML = '';
@@ -777,12 +886,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             };
 
             const layout = {
-                title: {
-                    text: isGlobal 
-                        ? `${selectedMetric} by Sequence (Global Mode)` 
-                        : `${selectedMetric} by Frame - ${selectedScope}`,
-                    font: { color: titleColor, size: 16, family: 'Montserrat', weight: 700 }
-                },
                 barmode: 'group',
                 paper_bgcolor: 'transparent',
                 plot_bgcolor: 'transparent',
@@ -794,7 +897,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     gridcolor: gridColor
                 },
                 showlegend: false,
-                margin: { t: 50, b: isGlobal ? 130 : 70, l: 60, r: 30 }
+                margin: { t: 20, b: isGlobal ? 130 : 70, l: 60, r: 30 }
             };
 
             const config = {
@@ -813,10 +916,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </html>
 """
 
-def generate_html_report(results_payload, output_path="compare_results.html"):
+def generate_html_report(results_payload, output_path="docs/index.html"):
     """
     Generates a standalone, interactive HTML dashboard with ULL dark/light mode
-    and the official ULL logo embedded.
+    and the official ULL logo embedded. Default output is docs/index.html so it
+    is automatically served by GitHub Pages.
     """
     logo_b64 = get_ull_logo_base64()
     if logo_b64:
@@ -827,6 +931,11 @@ def generate_html_report(results_payload, output_path="compare_results.html"):
     data_json = json.dumps(results_payload)
     
     html_content = HTML_TEMPLATE.replace("__LOGO_HTML__", logo_html).replace("__DATA_JSON__", data_json)
+
+    # Ensure the output directory exists
+    output_dir = os.path.dirname(output_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
     
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(html_content)
@@ -835,7 +944,7 @@ def generate_html_report(results_payload, output_path="compare_results.html"):
 def main():
     parser = argparse.ArgumentParser(description="Generate interactive HTML comparison dashboard (ULL Theme)")
     parser.add_argument("--results_dir", default="results", help="Directory containing the results")
-    parser.add_argument("--output", default="compare_results.html", help="Path to output HTML file")
+    parser.add_argument("--output", default="docs/index.html", help="Path to output HTML file (default: docs/index.html for GitHub Pages)")
     args = parser.parse_args()
     
     print(f"Loading results from {args.results_dir}...")

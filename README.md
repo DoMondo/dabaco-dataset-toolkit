@@ -86,14 +86,11 @@ Evaluation results are automatically exported to `results/<algorithm_name>/<sequ
 To regenerate or compare newly evaluated algorithms (e.g. `baseline_classical` vs. `baseline_yolo`) locally across all sequences:
 
 ```bash
-python tools/compare_algorithms.py --results_dir results --output compare_results.html
+# Generates docs/index.html (GitHub Pages) by default
+python tools/compare_algorithms.py --results_dir results
 ```
 
-Open `compare_results.html` in your browser:
-```bash
-brave compare_results.html
-# or xdg-open compare_results.html
-```
+Open `compare_results.html` in your browser.
 
 ### Features of the Comparison Tool:
 - **Interactive Metric Selection**: Filter by `Mean IoU`, `Corner Error (px)`, `Corner Error (%)`, `Pointing Error`, or `Inference Time (ms)`.
