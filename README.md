@@ -8,9 +8,9 @@ This repository contains the official code for accessing and evaluating the DABA
 
 ## Directory Structure
 
-- `python/access/` and `matlab/access/`: Dataloaders for Python and Matlab/Octave to easily iterate over the dataset and its ground truth.
-- `python/metrics/` and `matlab/metrics/`: Standardized evaluation metrics (`Detection Rate`, `Pixel Error`, `IoU`, `Jitter`) to compare algorithm predictions against the ground truth.
-- `python/baselines/` and `matlab/baselines/`: Reference algorithms (like classical screen contour detection) and evaluation scripts.
+- `python/access/`: Dataloaders for Python to easily iterate over the dataset and its ground truth.
+- `python/metrics/`: Standardized evaluation metrics (`Detection Rate`, `Pixel Error`, `IoU`, `Jitter`) to compare algorithm predictions against the ground truth.
+- `python/algorithms/`: Reference algorithms (like classical screen contour detection and YOLO instance segmentation) and evaluation scripts.
 
 ## Getting Started
 
@@ -27,17 +27,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Run the classical baseline on an extracted dataset folder:
+Run the algorithm evaluation on an extracted dataset folder. You can choose any detector module in `algorithms/` (e.g. `baseline_classical` or `baseline_yolo`), and optionally use `--visualize` to see the live comparison between the ground truth and the prediction:
 
 ```bash
-python baselines/evaluate_baseline.py /path/to/extracted/dabaco_esp32_ov3660
+python algorithms/evaluate_algorithm.py /path/to/extracted/dabaco_esp32_ov3660 --algorithm baseline_yolo --visualize
 ```
 
-### Matlab / Octave
-
-Navigate to the `matlab` directory. If you prefer working in Matlab or GNU Octave, we provide a native object-oriented loader and metrics evaluator. You can test the baseline by running:
-
-```matlab
-% In Octave or Matlab CLI from the 'matlab' folder:
-run('baselines/evaluate_baseline.m')
-```

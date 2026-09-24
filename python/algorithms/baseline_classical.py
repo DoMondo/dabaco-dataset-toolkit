@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from .utils import order_points
 
 class ClassicalScreenDetector:
     def __init__(self):
@@ -42,17 +43,7 @@ class ClassicalScreenDetector:
             # If the approximated contour has 4 points, we assume it's the screen
             if len(approx) == 4:
                 pts = approx.reshape(4, 2)
-                
-                # Order points: top-left, top-right, bottom-right, bottom-left
-                rect = np.zeros((4, 2), dtype="float32")
-                s = pts.sum(axis=1)
-                rect[0] = pts[np.argmin(s)]
-                rect[2] = pts[np.argmax(s)]
-                
-                diff = np.diff(pts, axis=1)
-                rect[1] = pts[np.argmin(diff)]
-                rect[3] = pts[np.argmax(diff)]
-                
+                rect = order_points(pts)
                 return rect.tolist()
                 
         return None
