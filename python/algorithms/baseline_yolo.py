@@ -14,6 +14,30 @@ class YoloScreenDetector:
         self.model = YOLO(model_name)
         self.classes = [62]
         
+    def _is_valid_quad(self, pts, frame_w, frame_h):
+        pts = np.array(pts, dtype=np.float32)
+        if not cv2.isContourConvex(pts.reshape(4, 1, 2)):
+            return False
+            
+        area = cv2.contourArea(pts.reshape(4, 1, 2))
+        if area < 900:  # Less than 30x30 pixels
+            return False
+            
+        # Simple aspect ratio check
+        ordered = order_points(pts)
+        (tl, tr, br, bl) = ordered
+        w_top = np.linalg.norm(tr - tl)
+        h_left = np.linalg.norm(bl - tl)
+        
+        if w_top < 10 or h_left < 10:
+            return False
+            
+        aspect = w_top / h_left
+        if aspect < 0.2 or aspect > 5.0:
+            return False
+            
+        return True
+        
     def detect(self, frame):
         """
         Processes a single frame and returns the 4 corners of the detected screen.
@@ -71,7 +95,9 @@ class YoloScreenDetector:
             ], dtype=np.float32)
             # Revert scaling to map back to original coordinates
             rect = rect / scale
-            return order_points(rect).tolist()
+            if self._is_valid_quad(rect, orig_w, orig_h):
+                return order_points(rect).tolist()
+            return None
             
         # Get the mask polygon of the best detection
         best_mask = results[0].masks.xy[best_idx]
@@ -94,7 +120,8 @@ class YoloScreenDetector:
                 pts = approx.reshape(4, 2)
                 # Revert scaling
                 pts = pts / scale
-                return order_points(pts).tolist()
+                if self._is_valid_quad(pts, orig_w, orig_h):
+                    return order_points(pts).tolist()
                 
         # Fallback if we couldn't find exactly 4 points:
         # Use a fixed epsilon and then minAreaRect
@@ -105,4 +132,6 @@ class YoloScreenDetector:
         
         # Revert scaling
         pts = np.array(pts, dtype=np.float32) / scale
-        return order_points(pts).tolist()
+        if self._is_valid_quad(pts, orig_w, orig_h):
+            return order_points(pts).tolist()
+        return None

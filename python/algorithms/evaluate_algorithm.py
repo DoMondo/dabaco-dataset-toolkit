@@ -68,6 +68,10 @@ def main():
         return
         
     detector = load_algorithm_detector(args.algorithm)
+    
+    # Warm-up iteration to avoid measuring model load time in the first frame
+    dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    _ = detector.detect(dummy_frame)
         
     sequences_to_evaluate = [args.sequence] if args.sequence else dataset.get_sequence_names()
     
@@ -77,7 +81,7 @@ def main():
             continue
             
         print(f"Evaluating sequence: {seq_name}")
-        seq_iter, ground_truth = dataset.get_sequence(seq_name)
+        seq_iter, ground_truth, metadata = dataset.get_sequence(seq_name)
         
         # Create results directory for the algorithm
         results_dir = os.path.join("results", args.algorithm)
@@ -98,9 +102,9 @@ def main():
             fh, fw = frame.shape[:2]
             metrics = DabacoMetrics(image_width=fw, image_height=fh)
             
-            t0 = time.time()
+            t0 = time.perf_counter()
             corners = detector.detect(frame)
-            t1 = time.time()
+            t1 = time.perf_counter()
             inference_time = t1 - t0
             
             predictions.append(corners)
@@ -117,16 +121,29 @@ def main():
             iou = metrics.compute_iou([gt_corners], [corners])
             pt_err = metrics.compute_pointing_error([gt_corners], [corners])
             
+            # Handle unlabeled frames (no GT) properly by saving null instead of 0.0
+            if gt_corners is None:
+                ce_px = None
+                ce_pct = None
+                iou = None
+                pt_err = None
+                
+            gt_status = ground_truth.get("frames", {}).get(str(frame_idx), {}).get("status", "unknown")
+            
             per_frame_results.append({
                 "frame": frame_idx,
                 "inference_time": inference_time,
                 "corner_error_px": ce_px,
                 "corner_error_pct": ce_pct,
                 "iou": iou,
-                "pointing_error": pt_err
+                "pointing_error": pt_err,
+                "status": gt_status
             })
             
-            print(f"Frame {frame_idx:04d}: Time: {inference_time*1000:.1f}ms | Pointing GT={pt_gt_str} | Pred={pt_pred_str} | CE: {ce_px:.1f}px ({ce_pct:.2f}%) | IoU: {iou:.3f} | PtErr: {pt_err:.3f}")
+            if ce_px is None:
+                print(f"Frame {frame_idx:04d}: Time: {inference_time*1000:.1f}ms | GT=UNLABELED | Pred={pt_pred_str}")
+            else:
+                print(f"Frame {frame_idx:04d}: Time: {inference_time*1000:.1f}ms | Pointing GT={pt_gt_str} | Pred={pt_pred_str} | CE: {ce_px:.1f}px ({ce_pct:.2f}%) | IoU: {iou:.3f} | PtErr: {pt_err:.3f}")
             
             if args.visualize:
                 vis_frame = frame.copy()
@@ -187,17 +204,32 @@ def main():
             cv2.destroyAllWindows()
             
         # Truncate to the minimum length in case of mismatches
-        min_len = min(len(gt_list), len(predictions))
+        if len(predictions) != len(gt_list):
+            print(f"WARNING: predictions length ({len(predictions)}) does not match ground truth length ({len(gt_list)}).")
+            # Pad predictions with None to penalize missing frames instead of truncating evaluation
+            if len(predictions) < len(gt_list):
+                predictions.extend([None] * (len(gt_list) - len(predictions)))
+            else:
+                predictions = predictions[:len(gt_list)]
         
-        results = metrics.evaluate_all(gt_list[:min_len], predictions[:min_len])
+        results = metrics.evaluate_all(gt_list, predictions)
+        
+        # Add time metrics
+        times = [r["inference_time"] for r in per_frame_results]
+        if times:
+            results["Mean Inference Time (ms)"] = float(np.mean(times) * 1000)
+            results["Median Inference Time (ms)"] = float(np.median(times) * 1000)
+            results["P95 Inference Time (ms)"] = float(np.percentile(times, 95) * 1000)
+            
         print(f"Results for {seq_name}:")
         for k, v in results.items():
-            print(f"  {k}: {v:.4f}")
+            print(f"  {k}: {v:.4f}" if isinstance(v, (int, float)) else f"  {k}: {v}")
             
         # Save sequence results
         seq_results = {
             "sequence": seq_name,
             "algorithm": args.algorithm,
+            "metadata": metadata,
             "aggregated_metrics": results,
             "frame_metrics": per_frame_results
         }

@@ -75,23 +75,30 @@ def load_results(results_dir="results"):
         for f in frames:
             processed_frames.append({
                 "frame": f.get("frame", 0),
-                "Mean IoU": f.get("iou", 0.0),
-                "Mean Corner Error (px)": f.get("corner_error_px", 0.0),
-                "Mean Corner Error (%)": f.get("corner_error_pct", 0.0),
-                "Mean Pointing Error": f.get("pointing_error", 0.0),
-                "Mean Inference Time (ms)": f.get("inference_time", 0.0) * 1000
+                "IoU": f.get("iou", None),
+                "Corner Error (px)": f.get("corner_error_px", None),
+                "Corner Error (%)": f.get("corner_error_pct", None),
+                "Pointing Error (%)": f.get("pointing_error", None) * 100.0 if f.get("pointing_error") is not None else None,
+                "Pointing Error (px, 1920)": f.get("pointing_error", None) * 1920 if f.get("pointing_error") is not None else None,
+                "Inference Time (ms)": f.get("inference_time", 0.0) * 1000,
+                "status": f.get("status", "unknown")
             })
+            
+        agg_data = agg.copy()
+        
+        # Rename pointing error aggregated metrics to match (%) format
+        for stat in ["Mean", "Median", "P95"]:
+            old_key = f"{stat} Pointing Error"
+            new_key = f"{stat} Pointing Error (%)"
+            if old_key in agg_data and agg_data[old_key] is not None:
+                agg_data[new_key] = agg_data[old_key] * 100.0
+                
+        agg_data["Mean Inference Time (ms)"] = mean_time_ms
             
         rec = {
             "algorithm": algo,
             "sequence": seq,
-            "aggregated": {
-                "Mean IoU": agg.get("Mean IoU", 0.0),
-                "Mean Corner Error (px)": agg.get("Mean Corner Error (px)", 0.0),
-                "Mean Corner Error (%)": agg.get("Mean Corner Error (%)", 0.0),
-                "Mean Pointing Error": agg.get("Mean Pointing Error (relative)", agg.get("Mean Pointing Error", 0.0)),
-                "Mean Inference Time (ms)": mean_time_ms
-            },
+            "aggregated": agg_data,
             "frames": processed_frames
         }
         records.append(rec)
@@ -543,11 +550,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="control-group">
                 <label for="metric-select">Metric</label>
                 <select id="metric-select" onchange="updateView()">
-                    <option value="Mean IoU">Mean IoU (Higher is better)</option>
-                    <option value="Mean Corner Error (px)">Mean Corner Error px (Lower is better)</option>
-                    <option value="Mean Corner Error (%)">Mean Corner Error % (Lower is better)</option>
-                    <option value="Mean Pointing Error">Mean Pointing Error (Lower is better)</option>
-                    <option value="Mean Inference Time (ms)">Inference Time ms (Lower is better)</option>
+                    <option value="IoU">IoU (Higher is better)</option>
+                    <option value="Corner Error (px)">Corner Error px (Lower is better)</option>
+                    <option value="Corner Error (%)">Corner Error % (Lower is better)</option>
+                    <option value="Pointing Error (px, 1920)">Pointing Error (px, 1920) (Lower is better)</option>
+                    <option value="Pointing Error (%)">Pointing Error % (Lower is better)</option>
+                    <option value="Inference Time (ms)">Inference Time ms (Lower is better)</option>
                 </select>
             </div>
 
@@ -556,6 +564,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <label for="scope-select">View Scope</label>
                 <select id="scope-select" onchange="updateView()">
                     <option value="__GLOBAL__">Global (Bar per Sequence)</option>
+                </select>
+            </div>
+
+            <!-- Statistic Selector -->
+            <div class="control-group">
+                <label for="stat-select">Statistic (Aggreg.)</label>
+                <select id="stat-select" onchange="updateView()">
+                    <option value="Mean">Mean</option>
+                    <option value="Median">Median</option>
+                    <option value="P95">P95</option>
+                </select>
+            </div>
+
+            <!-- GT Status Filter -->
+            <div class="control-group">
+                <label for="status-select">GT Status</label>
+                <select id="status-select" onchange="updateView()">
+                    <option value="ALL">All (Ignore Status)</option>
                 </select>
             </div>
 
@@ -600,19 +626,30 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const sequences = payload.sequences;
 
         const allMetricKeys = [
-            "Mean IoU",
-            "Mean Corner Error (px)",
-            "Mean Corner Error (%)",
-            "Mean Pointing Error",
-            "Mean Inference Time (ms)"
+            "IoU",
+            "Corner Error (px)",
+            "Corner Error (%)",
+            "Pointing Error (px, 1920)",
+            "Pointing Error (%)",
+            "Inference Time (ms)"
         ];
 
         const metricShortNames = {
-            "Mean IoU": "IoU",
-            "Mean Corner Error (px)": "Corner px",
-            "Mean Corner Error (%)": "Corner %",
-            "Mean Pointing Error": "Pointing",
-            "Mean Inference Time (ms)": "Time ms"
+            "IoU": "IoU",
+            "Corner Error (px)": "CE px",
+            "Corner Error (%)": "CE %",
+            "Pointing Error (px, 1920)": "PtErr px",
+            "Pointing Error (%)": "PtErr %",
+            "Inference Time (ms)": "Time ms"
+        };
+
+        const metricTooltips = {
+            "IoU": "Geometric overlap between prediction and ground truth (1.0 = perfect)",
+            "Corner Error (px)": "Mean Euclidean pixel distance between predicted and ground truth corners",
+            "Corner Error (%)": "Corner error normalized by the full image diagonal",
+            "Pointing Error (%)": "Distance of camera pointing relative to screen (0% = perfect, 100% = full screen width error)",
+            "Pointing Error (px, 1920)": "Pointing error scaled to a standard 1920px width monitor",
+            "Inference Time (ms)": "Processing latency per frame"
         };
 
         // ULL Academic Palette tuned for both dark and light modes
@@ -664,6 +701,30 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             algoContainer.appendChild(label);
         });
 
+        // Collect and populate unique GT statuses
+        const statusSet = new Set();
+        rawData.forEach(item => {
+            if (item.frames) {
+                item.frames.forEach(f => {
+                    if (f.status && f.status !== "unknown") {
+                        statusSet.add(f.status);
+                    }
+                });
+            }
+        });
+        const statusSelect = document.getElementById('status-select');
+        Array.from(statusSet).sort().forEach(st => {
+            const opt = document.createElement('option');
+            opt.value = st;
+            let displayName = st;
+            if (st === 'auto') displayName = 'auto (ArUco Detection)';
+            else if (st === 'tracked') displayName = 'tracked (Lucas-Kanade)';
+            else if (st === 'interpolated') displayName = 'interpolated (Linear Interpolation)';
+            
+            opt.textContent = displayName;
+            statusSelect.appendChild(opt);
+        });
+
         function copySequenceName() {
             const selectedScope = document.getElementById('scope-select').value;
             if (!selectedScope || selectedScope === '__GLOBAL__') return;
@@ -682,10 +743,25 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             });
         }
 
+        function getPercentile(arr, p) {
+            if (arr.length === 0) return 0;
+            const sorted = [...arr].sort((a, b) => a - b);
+            const pos = (sorted.length - 1) * p;
+            const base = Math.floor(pos);
+            const rest = pos - base;
+            if (sorted[base + 1] !== undefined) {
+                return sorted[base] + rest * (sorted[base + 1] - sorted[base]);
+            } else {
+                return sorted[base];
+            }
+        }
+
         function updateView() {
             const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
             const selectedMetric = document.getElementById('metric-select').value;
             const selectedScope = document.getElementById('scope-select').value;
+            const selectedStatus = document.getElementById('status-select').value;
+            const selectedStat = document.getElementById('stat-select').value;
             
             const checkedAlgos = Array.from(
                 document.querySelectorAll('#algo-checkboxes input:checked')
@@ -731,21 +807,53 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     const yVals = [];
                     
                     const metricSums = {};
-                    allMetricKeys.forEach(k => { metricSums[k] = { sum: 0, count: 0 }; });
+                    allMetricKeys.forEach(k => { metricSums[k] = { vals: [] }; });
 
                     sequences.forEach(seq => {
                         const item = rawData.find(d => d.algorithm === algo && d.sequence === seq);
-                        if (item && item.aggregated) {
-                            allMetricKeys.forEach(k => {
-                                if (item.aggregated[k] !== undefined && item.aggregated[k] !== null) {
-                                    metricSums[k].sum += item.aggregated[k];
-                                    metricSums[k].count++;
-                                }
-                            });
+                        if (item) {
+                            let seqVals = [];
                             
-                            if (item.aggregated[selectedMetric] !== undefined) {
-                                xVals.push(seq);
-                                yVals.push(item.aggregated[selectedMetric]);
+                            if (item.frames && item.frames.length > 0) {
+                                item.frames.forEach(f => {
+                                    if (selectedStatus !== 'ALL' && f.status !== selectedStatus) return;
+                                    
+                                    if (f[selectedMetric] !== undefined && f[selectedMetric] !== null) {
+                                        seqVals.push(f[selectedMetric]);
+                                    }
+                                    
+                                    allMetricKeys.forEach(k => {
+                                        if (f[k] !== undefined && f[k] !== null) {
+                                            metricSums[k].vals.push(f[k]);
+                                        }
+                                    });
+                                });
+                                
+                                if (seqVals.length > 0) {
+                                    xVals.push(seq);
+                                    if (selectedStat === 'Mean') {
+                                        yVals.push(seqVals.reduce((a,b)=>a+b,0) / seqVals.length);
+                                    } else if (selectedStat === 'Median') {
+                                        yVals.push(getPercentile(seqVals, 0.5));
+                                    } else if (selectedStat === 'P95') {
+                                        yVals.push(getPercentile(seqVals, 0.95));
+                                    }
+                                }
+                            } else if (selectedStatus === 'ALL' && item.aggregated) {
+                                // Fallback to pre-aggregated
+                                allMetricKeys.forEach(k => {
+                                    const aggKey = selectedStat + ' ' + k;
+                                    if (item.aggregated[aggKey] !== undefined && item.aggregated[aggKey] !== null) {
+                                        // Just push the aggregated value directly into vals, it will be averaged later which is an approximation for global
+                                        metricSums[k].vals.push(item.aggregated[aggKey]);
+                                    }
+                                });
+                                
+                                const targetKey = selectedStat + ' ' + selectedMetric;
+                                if (item.aggregated[targetKey] !== undefined) {
+                                    xVals.push(seq);
+                                    yVals.push(item.aggregated[targetKey]);
+                                }
                             }
                         }
                     });
@@ -756,13 +864,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     
                     let metricsHtml = '<div class="summary-metrics-grid">';
                     allMetricKeys.forEach(k => {
-                        const count = metricSums[k].count;
-                        const avg = count > 0 ? (metricSums[k].sum / count) : 0;
+                        let finalVal = 0;
+                        if (metricSums[k].vals.length > 0) {
+                            if (selectedStat === 'Mean') {
+                                finalVal = metricSums[k].vals.reduce((a,b)=>a+b,0) / metricSums[k].vals.length;
+                            } else if (selectedStat === 'Median') {
+                                finalVal = getPercentile(metricSums[k].vals, 0.5);
+                            } else if (selectedStat === 'P95') {
+                                finalVal = getPercentile(metricSums[k].vals, 0.95);
+                            }
+                        }
                         const isActive = (k === selectedMetric) ? ' active-metric' : '';
                         metricsHtml += `
-                            <div class="metric-stat${isActive}">
+                            <div class="metric-stat${isActive}" title="${metricTooltips[k]}">
                                 <span class="metric-stat-label">${metricShortNames[k]}</span>
-                                <span class="metric-stat-val">${avg.toFixed(3)}</span>
+                                <span class="metric-stat-val">${finalVal.toFixed(3)}</span>
                             </div>
                         `;
                     });
@@ -774,7 +890,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                                 <span class="algo-dot" style="background-color: ${algoColorMap[algo]}"></span>
                                 ${algo}
                             </span>
-                            <span class="summary-sub">${metricSums[selectedMetric].count} sequences</span>
+                            <span class="summary-sub">${xVals.length} sequences</span>
                         </div>
                         ${metricsHtml}
                     `;
@@ -797,19 +913,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     const yVals = [];
 
                     const metricSums = {};
-                    allMetricKeys.forEach(k => { metricSums[k] = { sum: 0, count: 0 }; });
+                    allMetricKeys.forEach(k => { metricSums[k] = { vals: [] }; });
 
                     if (item && item.frames && item.frames.length > 0) {
                         item.frames.forEach(f => {
+                            if (selectedStatus !== 'ALL' && f.status !== selectedStatus) return;
+
                             allMetricKeys.forEach(k => {
                                 if (f[k] !== undefined && f[k] !== null) {
-                                    metricSums[k].sum += f[k];
-                                    metricSums[k].count++;
+                                    metricSums[k].vals.push(f[k]);
                                 }
                             });
                             
                             xVals.push(f.frame);
-                            yVals.push(f[selectedMetric] || 0.0);
+                            // Push null explicitly to create gaps in Plotly for skipped/unlabeled frames
+                            yVals.push((f[selectedMetric] !== undefined && f[selectedMetric] !== null) ? f[selectedMetric] : null);
                         });
                     }
 
@@ -817,19 +935,43 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     const itemDiv = document.createElement('div');
                     itemDiv.className = 'summary-item';
 
+                    let kpisHtml = '';
+                    if (!isGlobal && item && item.aggregated) {
+                        let det = (item.aggregated['Detection Rate'] * 100).toFixed(1) + '%';
+                        let cov = (item.aggregated['Coverage'] * 100).toFixed(1) + '%';
+                        let flock = (item.aggregated['False-Lock Rate'] * 100).toFixed(1) + '%';
+                        let ttl = item.aggregated['Time-to-Lock (frames)'];
+                        ttl = (ttl === -1) ? 'Never' : ttl.toFixed(0);
+                        
+                        kpisHtml = `
+                            <div style="display:flex; justify-content:space-between; font-size:11px; background:var(--bg-card); padding:6px; margin-bottom:10px; border-radius:4px; border:1px solid var(--border-color); color:var(--text-secondary);">
+                                <span title="Percentage of frames with a valid screen prediction">Det: <strong style="color:var(--text-color)">${det}</strong></span>
+                                <span title="Fraction of ground truth screens successfully detected">Cov: <strong style="color:var(--text-color)">${cov}</strong></span>
+                                <span title="Fraction of detections locking onto an incorrect object (error > 5%)">FLock: <strong style="color:var(--text-color)">${flock}</strong></span>
+                                <span title="Average frames to acquire a lock after screen enters frame">TTL: <strong style="color:var(--text-color)">${ttl}</strong></span>
+                            </div>
+                        `;
+                    }
+
                     let metricsHtml = '<div class="summary-metrics-grid">';
                     allMetricKeys.forEach(k => {
-                        let avg = 0;
-                        if (metricSums[k].count > 0) {
-                            avg = metricSums[k].sum / metricSums[k].count;
-                        } else if (item && item.aggregated && item.aggregated[k] !== undefined) {
-                            avg = item.aggregated[k];
+                        let finalVal = 0;
+                        if (metricSums[k].vals.length > 0) {
+                            if (selectedStat === 'Mean') {
+                                finalVal = metricSums[k].vals.reduce((a,b)=>a+b,0) / metricSums[k].vals.length;
+                            } else if (selectedStat === 'Median') {
+                                finalVal = getPercentile(metricSums[k].vals, 0.5);
+                            } else if (selectedStat === 'P95') {
+                                finalVal = getPercentile(metricSums[k].vals, 0.95);
+                            }
+                        } else if (item && item.aggregated && item.aggregated[selectedStat + ' ' + k] !== undefined) {
+                            finalVal = item.aggregated[selectedStat + ' ' + k];
                         }
                         const isActive = (k === selectedMetric) ? ' active-metric' : '';
                         metricsHtml += `
-                            <div class="metric-stat${isActive}">
+                            <div class="metric-stat${isActive}" title="${metricTooltips[k]}">
                                 <span class="metric-stat-label">${metricShortNames[k]}</span>
-                                <span class="metric-stat-val">${avg.toFixed(3)}</span>
+                                <span class="metric-stat-val">${finalVal.toFixed(3)}</span>
                             </div>
                         `;
                     });
@@ -841,8 +983,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                                 <span class="algo-dot" style="background-color: ${algoColorMap[algo]}"></span>
                                 ${algo}
                             </span>
-                            <span class="summary-sub">${metricSums[selectedMetric].count} frames</span>
+                            <span class="summary-sub">${metricSums[selectedMetric].vals.length} frames</span>
                         </div>
+                        ${kpisHtml}
                         ${metricsHtml}
                     `;
                     summaryList.appendChild(itemDiv);

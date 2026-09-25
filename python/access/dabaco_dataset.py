@@ -56,7 +56,15 @@ class DabacoDataset:
         with open(seq["json_path"], "r") as f:
             ground_truth = json.load(f)
             
-        return SequenceIterator(seq["frames_dir"]), ground_truth
+        # Try to load metadata if present in the raw sequence directory
+        metadata = {}
+        raw_frames_dir = seq["frames_dir"].replace("_inpainted", "")
+        metadata_path = os.path.join(raw_frames_dir, "metadata.json")
+        if os.path.exists(metadata_path):
+            with open(metadata_path, "r") as f:
+                metadata = json.load(f)
+            
+        return SequenceIterator(seq["frames_dir"]), ground_truth, metadata
 
 
 class SequenceIterator:

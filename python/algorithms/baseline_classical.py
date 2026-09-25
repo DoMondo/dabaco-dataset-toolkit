@@ -74,7 +74,10 @@ class ClassicalScreenDetector:
         # Exact polygon approximations get a higher bonus than minAreaRect fallbacks
         poly_bonus = 1.5 if is_hull_approx else 0.8
         
-        score = area * (w_ratio * h_ratio) * ortho_score * aspect_score * poly_bonus
+        # Saturate area term to avoid degenerate large polygons (like the whole room) dominating
+        area_score = min(area_ratio, 0.4)
+        
+        score = area_score * (w_ratio * h_ratio) * ortho_score * aspect_score * poly_bonus
         return True, score
 
     def detect(self, frame):

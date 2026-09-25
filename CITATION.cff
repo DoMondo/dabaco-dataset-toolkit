@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use this dataset or toolkit, please cite it as below."
+authors:
+  - family-names: Gómez-Cárdenes
+    given-names: Óscar
+  - family-names: Marichal Hernández
+    given-names: José Gil
+  - family-names: Martín Doñas
+    given-names: Juan Manuel
+title: "DaBaCo: Dataset and Benchmark for Active Computer Vision"
+version: 2.0.0
+date-released: 2026-09-25
+url: "https://github.com/dabaco-project/dabaco-dataset-toolkit"
+dataset-doi: 10.5281/zenodo.22797836
