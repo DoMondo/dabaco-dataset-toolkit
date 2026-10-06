@@ -4,7 +4,9 @@
 
 This repository contains the official toolkit for accessing, evaluating, and benchmarking screen detection and pointing algorithms on the **DABACO Dataset** (*Dispositivo Apuntador de BAjo COste*).
 
-> **Dataset Download**: The dataset is hosted on Zenodo: [10.5281/zenodo.22797836](https://doi.org/10.5281/zenodo.22797836) *(Note: This DOI is currently in draft state and may not resolve publicly yet).*
+> **Paper**: DABACO: A Multi-Camera Dataset and Benchmark for Screen Localization and Pointing Estimation — [arXiv:2610.03928](https://arxiv.org/abs/2610.03928)
+>
+> **Dataset Download**: The dataset is hosted on Zenodo: [10.5281/zenodo.22797835](https://doi.org/10.5281/zenodo.22797835) (v1.0).
 
 ---
 
@@ -126,3 +128,35 @@ Open `docs/index.html` in your browser.
   - **Sequence Mode**: Frame-by-frame bar chart with interactive range slider + sequence average overview cards.
 - **Algorithm Filtering**: Real-time checkboxes to toggle algorithms in the comparison.
 - **Corporate Styling**: Styled according to the **Universidad de La Laguna (ULL)** design system with automatic Dark / Light mode toggle.
+
+---
+
+## Citation
+
+If you use the DABACO Dataset or this toolkit, please cite the paper:
+
+```bibtex
+@misc{dabaco2026arxiv,
+  author       = {Gómez-Cárdenes, Óscar and Marichal-Hernández, José Gil and Martín-Doñas, Juan Manuel},
+  title        = {{DABACO}: A Multi-Camera Dataset and Benchmark for Screen Localization and Pointing Estimation},
+  year         = {2026},
+  month        = oct,
+  howpublished = {arXiv:2610.03928},
+  url          = {https://arxiv.org/abs/2610.03928}
+}
+```
+
+The dataset itself is archived on Zenodo:
+
+```bibtex
+@misc{dabaco_dataset_2026,
+  author    = {Gómez-Cárdenes, Óscar and Marichal-Hernández, José Gil and Martín-Doñas, Juan Manuel},
+  title     = {{DABACO} Dataset (Dispositivo Apuntador de {BAjo COste})},
+  version   = {1.0},
+  month     = sep,
+  year      = {2026},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.22797835},
+  url       = {https://doi.org/10.5281/zenodo.22797835}
+}
+```

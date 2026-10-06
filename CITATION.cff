@@ -1,14 +1,37 @@
 cff-version: 1.2.0
-message: "If you use this dataset or toolkit, please cite it as below."
+message: "If you use this dataset or toolkit, please cite the paper below."
 authors:
   - family-names: Gómez-Cárdenes
     given-names: Óscar
+    orcid: "https://orcid.org/0000-0002-7951-982X"
   - family-names: Marichal-Hernández
     given-names: José Gil
+    orcid: "https://orcid.org/0000-0003-2297-8483"
   - family-names: Martín-Doñas
     given-names: Juan Manuel
+    orcid: "https://orcid.org/0000-0003-4874-0166"
 title: "DABACO Dataset (Dispositivo Apuntador de BAjo COste)"
 version: 1.0
 date-released: 2026-09-16
 url: "https://github.com/DoMondo/dabaco-dataset-toolkit"
 dataset-doi: 10.5281/zenodo.22797835
+preferred-citation:
+  type: article
+  title: "DABACO: A Multi-Camera Dataset and Benchmark for Screen Localization and Pointing Estimation"
+  authors:
+    - family-names: Gómez-Cárdenes
+      given-names: Óscar
+      orcid: "https://orcid.org/0000-0002-7951-982X"
+    - family-names: Marichal-Hernández
+      given-names: José Gil
+      orcid: "https://orcid.org/0000-0003-2297-8483"
+    - family-names: Martín-Doñas
+      given-names: Juan Manuel
+      orcid: "https://orcid.org/0000-0003-4874-0166"
+  year: 2026
+  month: 10
+  journal: "arXiv preprint"
+  identifiers:
+    - type: arxiv
+      value: "2610.03928"
+  url: "https://arxiv.org/abs/2610.03928"
